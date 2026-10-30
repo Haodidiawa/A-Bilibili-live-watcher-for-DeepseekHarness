@@ -1,0 +1,7 @@
+# dsh-live-watch —— DSH bundle patch
+- insert:
+    - id: live-watch
+      name: dsh-live-watch
+      config:
+        enabled: false
+        roomId: ""
