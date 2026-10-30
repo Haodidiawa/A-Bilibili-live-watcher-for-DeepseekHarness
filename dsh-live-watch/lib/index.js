@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,12 +8,24 @@ export const name = 'live-watch'
 export const inject = ['webServer']
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const LISTENER = join(HERE, 'listener.mjs')
 const HOME = homedir()
+const BOOT = join(HERE, 'boot.mjs')
+const PROFILES = join(HOME, '.dsh', 'profiles')
 const DIR = join(HOME, '.dsh', 'live-watch')
 const CFG_FILE = join(DIR, 'config.json')
 const STATUS_FILE = join(DIR, 'status.json')
 const LOG_FILE = join(DIR, 'listener.log')
+
+// 在所有 profile（web / desktop / 其他）里找一个依赖
+function profileDep(pkg, rel = '') {
+  try {
+    for (const name of readdirSync(PROFILES)) {
+      const p = join(PROFILES, name, 'node_modules', pkg, rel)
+      if (existsSync(p)) return p
+    }
+  } catch {}
+  return ''
+}
 
 const DEFAULTS = {
   enabled: false,
@@ -30,9 +42,9 @@ const DEFAULTS = {
   giftPrice: 100,
   giftCooldownMin: 30,
   giftMaxPerRun: 3,
-  personaPath: 'D:/humanlike/state/live-persona.md',
-  stylePath: 'D:/humanlike/state/chat-style.qq.md',
-  fewshotPath: 'D:/humanlike/state/bigfish-fewshot.md'
+  personaPath: '',
+  stylePath: '',
+  fewshotPath: ''
 }
 
 function normalize(src) {
@@ -92,8 +104,15 @@ export function apply(ctx) {
   function startChild(cfg) {
     writeFileCfg(cfg)
     const env = { ...process.env, LIVE_WATCH_CONFIG: CFG_FILE }
+    // 跨 profile 找依赖：web 里有就 web 用，desktop 里有就 desktop 用
+    const sherpa = process.env.SHERPA_ONNX_PATH || profileDep('sherpa-onnx-node')
+    const ffmpeg = process.env.FFMPEG_PATH || profileDep('ffmpeg-static', process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg')
+    if (sherpa) env.SHERPA_ONNX_PATH = sherpa
+    if (ffmpeg) env.FFMPEG_PATH = ffmpeg
+    // 桌面版（Electron）里 process.execPath 是 Electron 本体，加这个才会当 node 跑
+    if (process.versions.electron) env.ELECTRON_RUN_AS_NODE = '1'
     try {
-      child = spawn(process.execPath, [LISTENER], { env, stdio: 'ignore', windowsHide: true })
+      child = spawn(process.execPath, [BOOT], { env, stdio: 'ignore', windowsHide: true })
       log(`启动监听 room=${cfg.roomId} pid=${child.pid}`)
       child.on('exit', (code) => {
         child = null
