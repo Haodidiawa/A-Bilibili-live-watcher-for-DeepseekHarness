@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { startLogin, pollLogin, credentialPath } from './bili-login.mjs'
 
 export const name = 'live-watch'
 export const inject = ['webServer']
@@ -59,6 +60,9 @@ function normalize(src) {
   }
   c.roomId = String(c.roomId || '').trim()
   if (c.roomId.includes('[object')) c.roomId = ''
+  // 允许贴整条链接 / 带参数：只取数字
+  const rm = c.roomId.match(/[0-9]{3,}/)
+  if (rm) c.roomId = rm[0]
   c.replyProbability = Math.min(1, Math.max(0, Number(c.replyProbability) || 0))
   c.minReplyIntervalSec = Math.max(3, Number(c.minReplyIntervalSec) || 20)
   c.maxRepliesPerRun = Math.max(1, Number(c.maxRepliesPerRun) || 40)
@@ -158,6 +162,24 @@ export function apply(ctx) {
           })
           return
         }
+        if (url.pathname === '/api/live-watch/login/start' && req.method === 'POST') {
+          startLogin()
+            .then((r) => json(res, 200, { ok: true, ...r }))
+            .catch((e) => json(res, 500, { ok: false, error: e.message }))
+          return
+        }
+        if (url.pathname === '/api/live-watch/login/poll') {
+          const key = url.searchParams.get('key') || ''
+          pollLogin(key)
+            .then((r) => json(res, 200, { ok: true, ...r }))
+            .catch((e) => json(res, 500, { ok: false, error: e.message }))
+          return
+        }
+        if (url.pathname === '/api/live-watch/credential') {
+          json(res, 200, { ok: true, path: credentialPath(), exists: existsSync(credentialPath()) })
+          return
+        }
+
         let status = null
         try { status = JSON.parse(readFileSync(STATUS_FILE, 'utf8')) } catch {}
         json(res, 200, { ok: true, cfg: normalize(readFileCfg()), childPid: child?.pid || null, status })
