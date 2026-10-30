@@ -4,16 +4,17 @@
 
 - 插件本体在 [`dsh-live-watch/`](./dsh-live-watch/)
 - 完整安装、配置、风险说明见 [`dsh-live-watch/README.md`](./dsh-live-watch/README.md)
+- **桌面版（Desktop）用户**看 [`dsh-live-watch/DESKTOP.md`](./dsh-live-watch/DESKTOP.md)
 
-## 快速开始
+## 快速开始（Web UI）
 
 ```bash
 git clone https://github.com/Haodidiawa/A-Bilibili-live-watcher-for-DeepseekHarness.git
 cd A-Bilibili-live-watcher-for-DeepseekHarness
 
-# 1) 安装语音识别运行时（装进 DSH 的 web profile）
+# 1) 安装语音识别运行时和 ffmpeg（装进 DSH 的 web profile）
 cd ~/.dsh/profiles/web
-pnpm add sherpa-onnx-node     # 或 npm i sherpa-onnx-node
+pnpm add sherpa-onnx-node ffmpeg-static     # 或 npm i
 
 # 2) 把插件 link 进 profile
 #    ~/.dsh/profiles/web/package.json → dependencies 加：
