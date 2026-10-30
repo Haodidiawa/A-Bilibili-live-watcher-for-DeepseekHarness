@@ -28,12 +28,17 @@ window.__ModuleLoader__.load({
       .lw-wrap{max-width:760px;padding:8px 4px 40px;font-size:var(--dsh-content-font-size,14px)}
       .lw-h{font-size:18px;font-weight:600;margin:4px 0 6px}
       .lw-sub{color:var(--dsw-alias-label-secondary);margin-bottom:16px}
+      .lw-card{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;padding:12px 14px;margin-bottom:18px}
+      .lw-card-h{font-weight:600;margin-bottom:8px}
+      .lw-qr{display:block;width:220px;height:220px;margin:8px 0;image-rendering:pixelated;background:#fff;border-radius:8px}
       .lw-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--dsw-alias-border-l1)}
       .lw-row label{color:var(--dsw-alias-label-primary)}
       .lw-row input[type=text],.lw-row input[type=number]{width:280px;padding:6px 8px;border:1px solid var(--dsw-alias-border-l2);border-radius:6px;background:transparent;color:inherit}
       .lw-row input[type=checkbox]{width:18px;height:18px}
-      .lw-btn{margin-top:16px;padding:8px 18px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-button-primary-fill,#2f6fed);color:#fff;cursor:pointer}
+      .lw-btn{margin-top:12px;padding:8px 18px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-button-primary-fill,#2f6fed);color:#fff;cursor:pointer}
+      .lw-btn[disabled]{opacity:.6;cursor:default}
       .lw-msg{margin-top:10px;color:var(--dsw-alias-label-secondary);white-space:pre-wrap}
+      .lw-ok{color:#1a9b4a}
       .lw-note{margin-top:20px;color:var(--dsw-alias-label-tertiary);font-size:12px}
     `
 
@@ -41,12 +46,36 @@ window.__ModuleLoader__.load({
       const [cfg, setCfg] = React.useState(null)
       const [msg, setMsg] = React.useState('')
       const [busy, setBusy] = React.useState(false)
+      const [login, setLogin] = React.useState({ qr: '', key: '', status: '', busy: false })
+      const [cred, setCred] = React.useState(null)
 
       React.useEffect(() => {
         let alive = true
         fetch(API).then((r) => r.json()).then((d) => { if (alive && d && d.cfg) setCfg(d.cfg) }).catch((e) => setMsg('读取失败：' + e.message))
+        fetch(API + '/credential').then((r) => r.json()).then((d) => { if (alive && d) setCred(d) }).catch(() => {})
         return () => { alive = false }
       }, [])
+
+      React.useEffect(() => {
+        if (!login.key) return
+        let alive = true
+        const timer = setInterval(async () => {
+          try {
+            const r = await fetch(API + '/login/poll?key=' + encodeURIComponent(login.key))
+            const d = await r.json()
+            if (!alive) return
+            if (!d.ok) { setLogin((s) => ({ ...s, status: '轮询失败：' + (d.error || ''), key: '' })); return }
+            if (d.status === 'waiting') setLogin((s) => ({ ...s, status: '等待扫码…' }))
+            else if (d.status === 'scanned') setLogin((s) => ({ ...s, status: '已扫码，请在手机上点确认' }))
+            else if (d.status === 'expired') setLogin((s) => ({ ...s, status: d.message, qr: '', key: '' }))
+            else if (d.status === 'ok') {
+              setLogin((s) => ({ ...s, status: '登录成功，凭证已保存', qr: '', key: '' }))
+              setCred({ exists: true, path: d.credential })
+            } else setLogin((s) => ({ ...s, status: d.message || '登录失败', key: '' }))
+          } catch (e) { if (alive) setLogin((s) => ({ ...s, status: '轮询失败：' + e.message })) }
+        }, 2000)
+        return () => { alive = false; clearInterval(timer) }
+      }, [login.key])
 
       if (!cfg) return h('div', { className: 'lw-wrap' }, '读取配置…')
 
@@ -63,9 +92,30 @@ window.__ModuleLoader__.load({
         } catch (e) { setMsg('保存失败：' + e.message) } finally { setBusy(false) }
       }
 
+      async function startLogin() {
+        setLogin({ qr: '', key: '', status: '正在生成二维码…', busy: true })
+        try {
+          const r = await fetch(API + '/login/start', { method: 'POST' })
+          const d = await r.json()
+          if (!d.ok) throw new Error(d.error || '生成失败')
+          setLogin({ qr: d.qr, key: d.key, status: '用手机 B站 App 扫码', busy: false })
+        } catch (e) { setLogin({ qr: '', key: '', status: '生成失败：' + e.message, busy: false }) }
+      }
+
       return h('div', { className: 'lw-wrap' },
         h('div', { className: 'lw-h' }, '直播陪看（小鲸鱼）'),
         h('div', { className: 'lw-sub' }, '进 B站直播间听主播说话 / 看弹幕，按人设发弹幕、按规则送灯牌。'),
+
+        h('div', { className: 'lw-card' },
+          h('div', { className: 'lw-card-h' }, 'B站账号'),
+          cred && cred.exists
+            ? h('div', { className: 'lw-msg lw-ok' }, '已有登录凭证：' + cred.path)
+            : h('div', { className: 'lw-msg' }, '还没有登录凭证。点下面的按钮，用手机 B站 App 扫码登录。'),
+          login.qr ? h('img', { className: 'lw-qr', src: login.qr, alt: 'B站登录二维码' }) : null,
+          login.status ? h('div', { className: 'lw-msg' }, login.status) : null,
+          h('button', { className: 'lw-btn', disabled: login.busy, onClick: startLogin }, login.qr ? '重新生成二维码' : '扫码登录 B站')
+        ),
+
         ...FIELDS.map(([k, label, type]) => {
           const v = cfg[k]
           if (type === 'bool') {
