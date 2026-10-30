@@ -38,21 +38,23 @@
 ### 2. 放进 DSH
 
 ```bash
-# 把本仓库放到任意目录，例如 D:\dsh-main\dsh-live-watch
-# 然后在 profile 里 link 它：
-#   ~/.dsh/profiles/web/package.json
-#   dependencies:  "dsh-live-watch": "link:D:/dsh-main/dsh-live-watch"
-#   dsh.profile.bundles 里加 "dsh-live-watch"
+git clone https://github.com/Haodidiawa/A-Bilibili-live-watcher-for-DeepseekHarness.git
+# 插件目录 = <clone目录>/dsh-live-watch
 ```
 
-并把 `dsh-live-watch` 目录链接到 `~/.dsh/profiles/web/node_modules/dsh-live-watch`（Windows 下用 junction 即可）。
+在 `~/.dsh/profiles/web/package.json` 里：
+
+- `dependencies` 加 `"dsh-live-watch": "link:<clone目录>/dsh-live-watch"`；
+- `dsh.profile.bundles` 里加 `"dsh-live-watch"`。
+
+并把插件目录链接到 `~/.dsh/profiles/web/node_modules/dsh-live-watch`（Windows 下用 junction 即可）。
 
 重启 DSH 后，**设置 → 直播陪看** 会出现。
 
 ### 3. 模型
 
 ```bash
-node scripts/fetch-models.mjs
+node <clone目录>/dsh-live-watch/scripts/fetch-models.mjs
 # 默认下载到 ~/.dsh/live-watch/models
 ```
 
@@ -161,8 +163,7 @@ dsh-live-watch/
   client.js               # 设置页（设置 → 直播陪看）
   lib/index.js            # 服务端：配置、启停、状态路由
   lib/listener.mjs        # 监听器：拉流/转写/弹幕/送礼
-  lib/hostdeps.mjs        # 从宿主树取 schemastery
-  defaults/               # 默认人设卡 / 风格卡 / few-shot
+  defaults/               # 默认人设卡 / 风格卡
   scripts/fetch-models.mjs
 ```
 
